@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍷 나의 와인 여정</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+    background:#0a0505;
+    color:#f5e6d3;
+    font-family:Georgia,'Times New Roman',serif;
+    min-height:100vh;
+    overflow-x:hidden;
+}
+
+/* ── Header ── */
+#header {
+    text-align:center;
+    padding:28px 20px 14px;
+    background:linear-gradient(180deg,#1a0808 0%,transparent 100%);
+    border-bottom:1px solid #2a1010;
+}
+#header h1 { font-size:1.9rem; color:#c9a84c; letter-spacing:4px; text-transform:uppercase; margin-bottom:6px; }
+#header p  { font-size:0.8rem; color:#8a7060; letter-spacing:1.5px; font-style:italic; }
+
+/* ── Stats ── */
+#stats {
+    display:flex; justify-content:center; gap:50px;
+    padding:14px 20px; background:#120606;
+    border-bottom:1px solid #2a1010;
+}
+.stat-item { text-align:center; }
+.stat-number { font-size:1.8rem; color:#c9a84c; line-height:1; }
+.stat-label  { font-size:0.65rem; color:#7a5a4a; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+/* ── Map ── */
+#map-wrap {
+    width:100%; overflow-x:auto;
+    background:#0a0505; padding:24px 10px;
+}
+#wine-map {
+    display:block; margin:0 auto;
+    width:100%; max-width:1500px; height:auto;
+}
+
+/* Continent */
+.land { fill:#1a1008; stroke:#2e1c0a; stroke-width:1.2; }
+
+/* Grid lines (subtle) */
+.gridline { stroke:#1a1008; stroke-width:0.5; fill:none; }
+
+/* Region */
+.region { cursor:pointer; }
+.region circle {
+    transition:r 0.25s ease, filter 0.25s ease;
+    r:8;
+}
+.region.untried circle {
+    fill:#2a1818; stroke:#5a3030; stroke-width:1.5;
+}
+.region.tried circle {
+    fill:#8B0000; stroke:#d4183a; stroke-width:2;
+    filter:drop-shadow(0 0 5px rgba(212,24,58,0.55));
+}
+.region:hover circle { r:12; }
+.region.tried:hover circle {
+    filter:drop-shadow(0 0 14px rgba(212,24,58,0.9));
+}
+
+.region-dot-label {
+    font-size:7px; fill:#7a5a4a; text-anchor:middle;
+    pointer-events:none; font-family:Georgia,serif;
+    transition:fill 0.2s;
+}
+.region.tried .region-dot-label { fill:#e8d8c0; }
+.region:hover .region-dot-label  { fill:#f5e6d3; }
+
+.wine-count {
+    font-size:7px; fill:#f5e6d3; text-anchor:middle;
+    dominant-baseline:central; pointer-events:none;
+    font-family:Georgia,serif; font-weight:bold;
+}
+
+.country-lbl {
+    font-size:10px; fill:#3a2818; text-anchor:middle;
+    letter-spacing:2.5px; text-transform:uppercase;
+    font-family:Georgia,serif; pointer-events:none;
+}
+
+/* ── Legend ── */
+#legend {
+    display:flex; justify-content:center; align-items:center;
+    gap:24px; padding:12px 20px;
+    font-size:0.75rem; color:#6a5040;
+    border-top:1px solid #1a0a0a;
+}
+.leg { display:flex; align-items:center; gap:8px; }
+.leg-dot { width:11px; height:11px; border-radius:50%; }
+.leg-dot.tried   { background:#8B0000; box-shadow:0 0 6px rgba(212,24,58,0.6); }
+.leg-dot.untried { background:#2a1818; border:1px solid #5a3030; }
+
+/* ── Popup ── */
+#overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.65); z-index:998;
+}
+#overlay.on { display:block; }
+
+#panel {
+    position:fixed; top:0; right:-460px; width:440px; height:100vh;
+    background:#0f0606; border-left:1px solid #2a1010;
+    transition:right 0.38s cubic-bezier(0.25,0.46,0.45,0.94);
+    overflow-y:auto; z-index:999;
+    box-shadow:-12px 0 50px rgba(0,0,0,0.85);
+}
+#panel.on { right:0; }
+
+#p-close {
+    position:absolute; top:14px; right:14px;
+    background:none; border:1px solid #4a2020;
+    color:#c8b8a8; width:30px; height:30px;
+    cursor:pointer; font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    transition:all 0.2s; border-radius:2px;
+}
+#p-close:hover { background:#2a1010; border-color:#c41e3a; color:#f5e6d3; }
+
+#p-name    { padding:44px 24px 8px; font-size:1.45rem; color:#c9a84c; letter-spacing:1px; }
+#p-country { padding:0 24px 16px; font-size:0.72rem; color:#7a5a4a; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid #1e1010; }
+
+.psec { padding:16px 24px; border-bottom:1px solid #180a0a; }
+.psec-title { font-size:0.65rem; color:#c9a84c; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+.psec-body  { font-size:0.82rem; color:#c0a898; line-height:1.65; }
+.psec-body em { color:#f0e0d0; font-style:normal; }
+
+/* Wine cards */
+.wcard {
+    background:#180a0a; border:1px solid #2a1414;
+    border-radius:3px; padding:13px; margin-bottom:10px;
+    transition:border-color 0.2s;
+}
+.wcard:hover { border-color:#8B0000; }
+.wcard-name  { font-size:0.88rem; color:#f0e0d0; margin-bottom:3px; }
+.wcard-meta  { font-size:0.68rem; color:#6a4a3a; margin-bottom:9px; }
+.wcard-lbl   { font-size:0.62rem; color:#c9a84c; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:3px; }
+.wcard-note  { font-size:0.78rem; color:#a89070; line-height:1.55; font-style:italic; }
+.wcard-mynote{ font-size:0.8rem; color:#c0b0a0; line-height:1.55; }
+.wcard-stars { margin-top:7px; color:#c9a84c; font-size:0.82rem; }
+.no-wines    { text-align:center; padding:28px 10px; color:#4a3a30; font-style:italic; font-size:0.82rem; }
+
+/* Scrollbar */
+::-webkit-scrollbar       { width:5px; }
+::-webkit-scrollbar-track { background:#0a0505; }
+::-webkit-scrollbar-thumb { background:#2a1010; border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#8B0000; }
+</style>
+</head>
+<body>
+
+<div id="header">
+    <h1>🍷 나의 와인 여정</h1>
+    <p>한 잔씩, 한 지역씩 — 세계를 마시다</p>
+</div>
+
+<div id="stats">
+    <div class="stat-item">
+        <div class="stat-number" id="sn-regions">0</div>
+        <div class="stat-label">지역 방문</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-number" id="sn-wines">0</div>
+        <div class="stat-label">와인</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-number" id="sn-countries">0</div>
+        <div class="stat-label">국가</div>
+    </div>
+</div>
+
+<div id="map-wrap">
+<svg id="wine-map" viewBox="0 0 1500 750" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Ocean -->
+  <rect width="1500" height="750" fill="#080404"/>
+
+  <!-- Subtle latitude grid -->
+  <line class="gridline" x1="0" y1="375" x2="1500" y2="375"/>
+  <line class="gridline" x1="750" y1="0"  x2="750"  y2="750"/>
+
+  <!-- ── Continent shapes (simplified) ── -->
+
+  <!-- Western Europe -->
+  <polygon class="land" points="
+    650,152 668,144 690,138 720,133 748,130 776,128 804,130
+    828,136 842,148 845,163 840,180 830,196 822,215 815,228
+    798,222 782,218 768,222 752,218 732,222 712,220 698,215
+    682,210 668,204 655,196 646,182 646,168
+  "/>
+
+  <!-- Iberian Peninsula -->
+  <polygon class="land" points="
+    646,168 668,162 700,160 718,168 726,182 722,202 712,220
+    692,226 670,226 650,218 638,206 634,192 638,178
+  "/>
+
+  <!-- Jutland / Germany north -->
+  <polygon class="land" points="
+    760,104 785,96 798,102 800,116 790,128 768,132 756,120
+  " style="opacity:0.55;"/>
+
+  <!-- UK rough -->
+  <polygon class="land" points="
+    668,112 686,104 700,108 702,124 692,136 676,138 664,126
+  " style="opacity:0.5;"/>
+
+  <!-- Scandinavia rough -->
+  <polygon class="land" points="
+    756,80 790,70 810,76 814,92 804,108 784,116 760,108
+  " style="opacity:0.4;"/>
+
+  <!-- Central/East Europe + Balkans -->
+  <polygon class="land" points="
+    842,128 900,120 940,124 960,136 958,160 942,178 918,186
+    890,182 860,170 844,156
+  " style="opacity:0.7;"/>
+
+  <!-- North Africa (subtle) -->
+  <polygon class="land" points="
+    630,242 700,234 780,230 860,230 940,234 980,242 980,270 860,274 780,272 700,274 630,270
+  " style="fill:#140e06; stroke:#261608;"/>
+
+  <!-- Sub-Saharan Africa + South Africa -->
+  <polygon class="land" points="
+    718,272 794,264 856,266 900,274 912,296 908,344 895,392
+    878,438 858,475 836,504 810,526 786,538 764,540 742,528
+    724,512 712,490 706,462 708,424 712,382 716,340 716,296
+  "/>
+
+  <!-- North America (west) -->
+  <polygon class="land" points="
+    188,148 276,140 314,150 326,166 328,196 322,228 310,258
+    288,278 260,282 232,276 206,262 190,244 182,220 182,192 184,170
+  "/>
+
+  <!-- Mexico/Central (small) -->
+  <polygon class="land" points="
+    260,278 314,260 336,270 334,294 318,304 294,300 268,292
+  " style="opacity:0.55;"/>
+
+  <!-- South America -->
+  <polygon class="land" points="
+    382,298 448,286 492,290 514,310 518,338 512,390 502,440
+    490,486 476,534 458,578 440,594 420,590 404,570 396,534
+    390,494 388,454 386,414 388,368 386,334 382,310
+  "/>
+
+  <!-- Asia (partial, east) -->
+  <polygon class="land" points="
+    960,120 1040,108 1100,104 1150,108 1200,116 1220,132 1210,160
+    1190,180 1160,192 1120,188 1080,178 1040,162 1010,148 970,140
+  " style="opacity:0.5;"/>
+
+  <!-- SE Asia / Indonesia (small hints) -->
+  <polygon class="land" points="
+    1160,290 1210,282 1240,288 1240,308 1210,318 1168,310
+  " style="opacity:0.4;"/>
+
+  <!-- Australia -->
+  <polygon class="land" points="
+    1182,440 1252,430 1318,428 1368,434 1400,450 1408,468
+    1402,496 1388,520 1362,540 1322,550 1276,554 1232,550
+    1196,540 1178,522 1172,500 1174,474 1178,456
+  "/>
+
+  <!-- New Zealand North Island -->
+  <polygon class="land" points="
+    1446,508 1468,502 1492,510 1494,528 1480,538 1460,536 1448,522
+  "/>
+
+  <!-- New Zealand South Island -->
+  <polygon class="land" points="
+    1438,542 1466,536 1495,544 1497,566 1482,580 1454,580 1438,566 1436,552
+  "/>
+
+  <!-- Country labels -->
+  <text class="country-lbl" x="740" y="166">FRANCE</text>
+  <text class="country-lbl" x="804" y="196">ITALY</text>
+  <text class="country-lbl" x="682" y="192" font-size="9">SPAIN</text>
+  <text class="country-lbl" x="652" y="208" font-size="8">PORT.</text>
+  <text class="country-lbl" x="784" y="150" font-size="9">GERMANY</text>
+  <text class="country-lbl" x="244" y="196" font-size="9">U.S.A.</text>
+  <text class="country-lbl" x="444" y="500" font-size="9">ARG.</text>
+  <text class="country-lbl" x="430" y="516" font-size="8">CHILE</text>
+  <text class="country-lbl" x="1290" y="492">AUSTRALIA</text>
+  <text class="country-lbl" x="1468" y="558" font-size="8">N.Z.</text>
+  <text class="country-lbl" x="792" y="512" font-size="9">S.AFRICA</text>
+
+  <!-- Region markers injected by JS -->
+  <g id="rg"></g>
+
+</svg>
+</div>
+
+<div id="legend">
+    <div class="leg"><div class="leg-dot tried"></div><span>마신 지역</span></div>
+    <div class="leg"><div class="leg-dot untried"></div><span>아직 미방문</span></div>
+    <span style="color:#2a1010;">|</span>
+    <span style="font-style:italic;">지역 클릭 → 와인 목록</span>
+</div>
+
+<!-- Popup -->
+<div id="overlay"></div>
+<div id="panel">
+    <button id="p-close">✕</button>
+    <div id="p-name">-</div>
+    <div id="p-country">-</div>
+    <div class="psec">
+        <div class="psec-title">🍇 대표 포도 품종</div>
+        <div class="psec-body" id="p-grapes">-</div>
+    </div>
+    <div class="psec">
+        <div class="psec-title">👃 이 지역에서 느껴야 할 것들</div>
+        <div class="psec-body" id="p-tasting">-</div>
+    </div>
+    <div class="psec" style="border:none;">
+        <div class="psec-title">🍷 내가 마신 와인</div>
+        <div id="p-wines"><div class="no-wines">아직 기록 없음</div></div>
+    </div>
+</div>
+
+<script>
+// ── 지역 데이터 ──────────────────────────────────────────────
+const R = {
+  // 🇫🇷 France
+  bordeaux:    {n:'Bordeaux',          c:'🇫🇷 France',      lat:44.8,  lon:-0.6,  g:'Cabernet Sauvignon · Merlot · Cabernet Franc', t:'블랙커런트 · 자두 · 삼나무 · 담배 · 우아한 탄닌 / 숙성: 가죽·흙·트러플'},
+  burgundy:    {n:'Bourgogne',         c:'🇫🇷 France',      lat:47.0,  lon: 4.8,  g:'Pinot Noir (적) · Chardonnay (백)', t:'레드체리 · 라즈베리 · 버섯 · 흙 · 섬세한 탄닌 / Chardonnay: 버터·헤이즐넛·미네랄'},
+  champagne:   {n:'Champagne',         c:'🇫🇷 France',      lat:49.0,  lon: 4.0,  g:'Chardonnay · Pinot Noir · Pinot Meunier', t:'초록사과 · 레몬 · 이스트 · 크리미한 거품 / 숙성: 토스트·꿀·견과류'},
+  alsace:      {n:'Alsace',            c:'🇫🇷 France',      lat:48.3,  lon: 7.5,  g:'Riesling · Gewürztraminer · Pinot Gris', t:'Riesling: 라임·슬레이트·미네랄 / Gewürz: 리치·장미·향신료 / PG: 복숭아·연기'},
+  loire:       {n:'Loire Valley',      c:'🇫🇷 France',      lat:47.4,  lon: 0.7,  g:'Sauvignon Blanc · Chenin Blanc · Cabernet Franc', t:'SB: 구스베리·자몽·허브 / Chenin: 꿀·사과 / CF: 딸기·피망·미네랄'},
+  rhone:       {n:'Côtes du Rhône',   c:'🇫🇷 France',      lat:44.5,  lon: 4.7,  g:'Syrah (북부) · Grenache·Mourvèdre (남부)', t:'북부 Syrah: 블랙베리·올리브·후추·스모키 / 남부: 라즈베리·허브·향신료'},
+  provence:    {n:'Provence',          c:'🇫🇷 France',      lat:43.7,  lon: 5.7,  g:'Grenache · Cinsault · Syrah (로제)', t:'딸기 · 라즈베리 · 꽃향기 · 허브 · 미네랄 / 세계 최고의 드라이 로제'},
+
+  // 🇮🇹 Italy
+  tuscany:     {n:'Toscana',           c:'🇮🇹 Italy',       lat:43.5,  lon:11.0,  g:'Sangiovese (키안티·브루넬로·슈퍼 투스칸)', t:'체리 · 자두 · 토마토잎 · 가죽 · 담배 · 강한 산미&탄닌 / 숙성: 무화과·흙'},
+  piedmont:    {n:'Piemonte',          c:'🇮🇹 Italy',       lat:44.7,  lon: 8.0,  g:'Nebbiolo (바롤로·바르바레스코) · Barbera · Dolcetto', t:'장미 · 타르 · 체리 · 감초 · 말린 과일 / 탄닌 매우 강함 · 장기 숙성 필수'},
+  veneto:      {n:'Veneto',            c:'🇮🇹 Italy',       lat:45.4,  lon:11.5,  g:'Corvina (아마로네) · Garganega (소아베) · Glera (프로세코)', t:'아마로네: 건포도·초콜릿·타르 / 소아베: 아몬드·꽃 / 프로세코: 사과·배·거품'},
+  sicily:      {n:'Sicilia',           c:'🇮🇹 Italy',       lat:37.6,  lon:14.2,  g:"Nero d'Avola · Nerello Mascalese · Grillo", t:'검은 체리 · 초콜릿 · 지중해 허브 · 향신료 · 따뜻한 알코올감'},
+
+  // 🇪🇸 Spain
+  rioja:       {n:'Rioja',             c:'🇪🇸 Spain',       lat:42.5,  lon:-2.5,  g:'Tempranillo · Garnacha · Graciano', t:'딸기 · 바닐라 · 가죽 · 담배 / Reserva·Gran Reserva: 복합적인 오크·스파이스'},
+  ribera:      {n:'Ribera del Duero',  c:'🇪🇸 Spain',       lat:41.7,  lon:-3.7,  g:'Tempranillo (Tinto Fino)', t:'블랙체리 · 플럼 · 초콜릿 · 오크 / Rioja보다 풀바디·진한 색상·강한 구조감'},
+  priorat:     {n:'Priorat',           c:'🇪🇸 Spain',       lat:41.2,  lon: 0.8,  g:'Garnacha · Cariñena', t:'블랙 프루트 · 슬레이트 미네랄 (llicorella토양) · 매우 농축 · 높은 알코올'},
+
+  // 🇵🇹 Portugal
+  douro:       {n:'Douro Valley',      c:'🇵🇹 Portugal',    lat:41.2,  lon:-7.7,  g:'Touriga Nacional · Tinta Roriz · Touriga Franca', t:'블랙베리 · 다크초콜릿 · 바이올렛 / 포트: 무화과·견과류·캐러멜'},
+  alentejo:    {n:'Alentejo',          c:'🇵🇹 Portugal',    lat:38.5,  lon:-8.0,  g:'Aragonez · Alicante Bouschet · Antão Vaz', t:'잘 익은 자두 · 체리 · 바닐라 · 따뜻한 향신료 / 풀바디·과일 포워드'},
+
+  // 🇩🇪 Germany
+  mosel:       {n:'Mosel',             c:'🇩🇪 Germany',     lat:49.9,  lon: 6.9,  g:'Riesling', t:'라임 · 사과 · 복숭아 · 슬레이트 미네랄 · 꽃향기 / 당도 스펙트럼 넓음 · 섬세하고 우아'},
+  rheingau:    {n:'Rheingau',          c:'🇩🇪 Germany',     lat:50.0,  lon: 8.0,  g:'Riesling · Spätburgunder', t:'Riesling: 복숭아·살구·미네랄 / Spätburgunder: 섬세한 체리·흙·우아함'},
+
+  // 🇺🇸 USA
+  napa:        {n:'Napa Valley',       c:'🇺🇸 USA',         lat:38.5,  lon:-122.5,g:'Cabernet Sauvignon · Chardonnay · Merlot', t:'블랙커런트 · 블루베리 · 바닐라 · 모카 / 풀바디 · 오크: 토스트·코코넛·크리미'},
+  sonoma:      {n:'Sonoma',            c:'🇺🇸 USA',         lat:38.3,  lon:-122.9,g:'Pinot Noir · Chardonnay · Zinfandel', t:'딸기 · 라즈베리 · 향신료 / Napa보다 우아 / Zin: 블랙베리·후추·잼'},
+  willamette:  {n:'Willamette Valley', c:'🇺🇸 USA',         lat:45.0,  lon:-123.0,g:'Pinot Noir · Chardonnay · Pinot Gris', t:'체리 · 라즈베리 · 흙 · 버섯 / 부르고뉴 스타일 · 섬세하고 우아한 Pinot'},
+
+  // 🇦🇷 Argentina & 🇨🇱 Chile
+  mendoza:     {n:'Mendoza',           c:'🇦🇷 Argentina',   lat:-32.9, lon:-68.8, g:'Malbec · Cabernet Sauvignon · Torrontés', t:'자두 · 블루베리 · 바이올렛 · 초콜릿 / 안데스 고지대 영향 · 부드러운 탄닌'},
+  maipo:       {n:'Maipo Valley',      c:'🇨🇱 Chile',       lat:-33.5, lon:-70.5, g:'Cabernet Sauvignon · Carmenère', t:'블랙커런트 · 피망 · 민트 · 허브 / Carmenère: 피망·초콜릿·향신료 (칠레 시그니처)'},
+  casablanca:  {n:'Casablanca Valley', c:'🇨🇱 Chile',       lat:-33.3, lon:-71.4, g:'Sauvignon Blanc · Chardonnay · Pinot Noir', t:'자몽 · 라임 · 허브 · 미네랄 · 청량감 / 태평양 냉기로 산도 높고 신선'},
+
+  // 🇦🇺 Australia
+  barossa:     {n:'Barossa Valley',    c:'🇦🇺 Australia',   lat:-34.5, lon:138.9, g:'Shiraz · Grenache · Riesling', t:'블랙베리 · 초콜릿 · 오크 · 가죽 · 후추 / 호주 최고의 Shiraz 산지 · 풀바디'},
+  mclaren:     {n:'McLaren Vale',      c:'🇦🇺 Australia',   lat:-35.2, lon:138.5, g:'Shiraz · Grenache · Cabernet', t:'다크 초콜릿 · 블랙베리 · 감초 · 지중해 허브 · 미네랄 / Barossa보다 우아'},
+  margaret:    {n:'Margaret River',    c:'🇦🇺 Australia',   lat:-33.9, lon:115.1, g:'Cabernet Sauvignon · Chardonnay', t:'블랙커런트 · 그래파이트 · 민트 / Chardonnay: 자몽·크림·오크 / 보르도 스타일'},
+  yarra:       {n:'Yarra Valley',      c:'🇦🇺 Australia',   lat:-37.7, lon:145.5, g:'Pinot Noir · Chardonnay · Shiraz', t:'체리 · 딸기 · 향신료 · 흙 · 섬세함 / 서늘한 기후 · 부르고뉴 대안'},
+
+  // 🇳🇿 New Zealand
+  marlborough: {n:'Marlborough',       c:'🇳🇿 New Zealand', lat:-41.5, lon:173.9, g:'Sauvignon Blanc · Pinot Noir', t:'패션프루트 · 구스베리 · 잔디 · 미네랄 · 청량감 / 세계 최고의 SB 산지'},
+  central_otago:{n:'Central Otago',   c:'🇳🇿 New Zealand', lat:-45.0, lon:169.3, g:'Pinot Noir · Riesling', t:'체리 · 딸기 · 향신료 · 흙 / 세계 최남단 와인 산지 · 부르고뉴 대안'},
+
+  // 🇿🇦 South Africa
+  stellenbosch:{n:'Stellenbosch',      c:'🇿🇦 South Africa',lat:-33.9, lon:18.8,  g:'Pinotage · Cabernet Sauvignon · Chenin Blanc', t:'Pinotage: 블랙체리·연기·초콜릿 / Cab: 블랙커런트·오크 / Chenin: 사과·꿀'},
+};
+
+// ── 투영 ─────────────────────────────────────────────────────
+function proj(lat, lon) {
+    return { x:(lon+180)*(1500/360), y:(90-lat)*(750/180) };
+}
+
+// ── 상태 ─────────────────────────────────────────────────────
+let DATA = { wines:[] };
+
+// ── 렌더 ─────────────────────────────────────────────────────
+function renderMap() {
+    const layer = document.getElementById('rg');
+    layer.innerHTML = '';
+
+    Object.entries(R).forEach(([id, reg]) => {
+        const p = proj(reg.lat, reg.lon);
+        const ws = DATA.wines.filter(w => w.region === id);
+        const tried = ws.length > 0;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class', `region ${tried?'tried':'untried'}`);
+        g.setAttribute('data-id', id);
+        g.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+
+        const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        c.setAttribute('cx','0'); c.setAttribute('cy','0'); c.setAttribute('r', tried?'8':'7');
+        g.appendChild(c);
+
+        if (ws.length > 1) {
+            const cnt = document.createElementNS('http://www.w3.org/2000/svg','text');
+            cnt.setAttribute('class','wine-count');
+            cnt.setAttribute('x','0'); cnt.setAttribute('y','0');
+            cnt.textContent = ws.length;
+            g.appendChild(cnt);
+        }
+
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('class','region-dot-label');
+        lbl.setAttribute('x','0'); lbl.setAttribute('y', tried?'22':'19');
+        lbl.textContent = reg.n;
+        g.appendChild(lbl);
+
+        g.addEventListener('click', () => openPanel(id));
+        layer.appendChild(g);
+    });
+}
+
+function updateStats() {
+    const regions   = new Set(DATA.wines.map(w => w.region));
+    const countries = new Set(DATA.wines.map(w => R[w.region]?.c).filter(Boolean));
+    document.getElementById('sn-regions').textContent   = regions.size;
+    document.getElementById('sn-wines').textContent     = DATA.wines.length;
+    document.getElementById('sn-countries').textContent = countries.size;
+}
+
+// ── 패널 ─────────────────────────────────────────────────────
+function openPanel(id) {
+    const reg = R[id];
+    document.getElementById('p-name').textContent    = reg.n;
+    document.getElementById('p-country').textContent = reg.c;
+    document.getElementById('p-grapes').innerHTML    = `<em>${reg.g}</em>`;
+    document.getElementById('p-tasting').textContent = reg.t;
+
+    const ws = DATA.wines.filter(w => w.region === id);
+    const div = document.getElementById('p-wines');
+    if (!ws.length) {
+        div.innerHTML = '<div class="no-wines">아직 기록한 와인이 없어요 🍷<br>텔레그램으로 알려주세요!</div>';
+    } else {
+        div.innerHTML = ws.map(w => `
+            <div class="wcard">
+                <div class="wcard-name">${w.name}</div>
+                <div class="wcard-meta">${w.date_tried||''}${w.grape?' · '+w.grape:''}</div>
+                ${w.expert_notes?`<div class="wcard-lbl">전문가 테이스팅</div><div class="wcard-note">${w.expert_notes}</div>`:''}
+                ${w.my_notes?`<div class="wcard-lbl" style="margin-top:9px;color:#a89070;">내 기록</div><div class="wcard-mynote">${w.my_notes}</div>`:''}
+                ${w.rating?`<div class="wcard-stars">${'★'.repeat(Math.floor(w.rating))}${'☆'.repeat(5-Math.floor(w.rating))} ${w.rating}</div>`:''}
+            </div>`).join('');
+    }
+
+    document.getElementById('panel').classList.add('on');
+    document.getElementById('overlay').classList.add('on');
+}
+
+function closePanel() {
+    document.getElementById('panel').classList.remove('on');
+    document.getElementById('overlay').classList.remove('on');
+}
+
+// ── 이벤트 ───────────────────────────────────────────────────
+document.getElementById('p-close').addEventListener('click', closePanel);
+document.getElementById('overlay').addEventListener('click', closePanel);
+document.addEventListener('keydown', e => { if(e.key==='Escape') closePanel(); });
+
+// ── 초기화 ───────────────────────────────────────────────────
+async function init() {
+    try {
+        const r = await fetch('./wines.json?v=' + Date.now());
+        if (r.ok) DATA = await r.json();
+    } catch(e) { /* 첫 로드 시 빈 데이터 */ }
+    renderMap();
+    updateStats();
+}
+
+init();
+</script>
+</body>
+</html>
